@@ -14,7 +14,7 @@ public class WindowingMain {
         // Set up the configuration.
         final Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "windowing-example");
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:29092");
         props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
         // Since the input topic uses Strings for both key and value, set the default Serdes to String.
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());

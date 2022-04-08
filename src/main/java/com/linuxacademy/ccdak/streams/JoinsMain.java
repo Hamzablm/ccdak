@@ -1,5 +1,6 @@
 package com.linuxacademy.ccdak.streams;
 
+import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import org.apache.kafka.common.serialization.Serdes;
@@ -7,6 +8,8 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.kstream.JoinWindows;
+import org.apache.kafka.streams.kstream.KStream;
 
 public class JoinsMain {
 
@@ -14,7 +17,7 @@ public class JoinsMain {
         // Set up the configuration.
         final Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "joins-example");
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:29092");
         props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
         // Since the input topic uses Strings for both key and value, set the default Serdes to String.
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
@@ -24,7 +27,27 @@ public class JoinsMain {
         final StreamsBuilder builder = new StreamsBuilder();
         
         //Implement streams logic.
-        
+        KStream<String, String> left = builder.stream("joins-input-topic-left");
+        KStream<String, String> right = builder.stream("joins-input-topic-right");
+
+        // Perform an inner join
+        KStream<String, String> innerJoined = left.join(right,
+                (value1, value2) -> "left=" + value1 + ", right=" + value2,
+                JoinWindows.of(Duration.ofMinutes(5)));
+        innerJoined.to("inner-join-output-topic");
+
+        // Perform a left join
+        KStream<String, String> leftJoined = left.leftJoin(right,
+                (value1, value2) -> "left=" + value1 + ", right=" + value2,
+                JoinWindows.of(Duration.ofMinutes(5)));
+        leftJoined.to("left-join-output-topic");
+
+        // Perform an outer join
+        KStream<String, String> outerJoined = left.outerJoin(right,
+                (value1, value2) -> "left=" + value1 + ", right=" + value2,
+                JoinWindows.of(Duration.ofMinutes(5)));
+        outerJoined.to("outer-join-output-topic");
+
         final Topology topology = builder.build();
         final KafkaStreams streams = new KafkaStreams(topology, props);
         // Print the topology to the console.

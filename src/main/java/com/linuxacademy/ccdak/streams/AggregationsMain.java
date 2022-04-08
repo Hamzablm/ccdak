@@ -7,6 +7,7 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.kstream.*;
 
 public class AggregationsMain {
 
@@ -14,7 +15,7 @@ public class AggregationsMain {
         // Set up the configuration.
         final Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "aggregations-example");
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:29092");
         props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
         // Since the input topic uses Strings for both key and value, set the default Serdes to String.
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
@@ -22,9 +23,35 @@ public class AggregationsMain {
 
         // Get the source stream.
         final StreamsBuilder builder = new StreamsBuilder();
-        
-        //Implement streams logic.
-        
+        KStream<String, String> source = builder.stream("aggregations-input-topic");
+
+        // Group the source stream the existing Key.
+        KGroupedStream<String, String> groupedStream = source.groupByKey();
+
+        // Create an aggregation that totals the length in chars of the value for all
+        // records sharing the same key
+        KTable<String, Integer> aggregatedTable = groupedStream.aggregate(() -> 0,
+                (key, value, aggregate) -> aggregate + value.length(),
+                Materialized.with(Serdes.String(), Serdes.Integer()));
+
+
+        aggregatedTable.toStream()
+                .to("aggregations-output-charactercount-topic",
+                        Produced.with(Serdes.String(), Serdes.Integer()));
+
+        // Count the number of records for each key
+        KTable<String, Long> countedTable = groupedStream.count(
+                Materialized.with(Serdes.String(), Serdes.Long()));
+        countedTable.toStream()
+                .to("aggregations-output-count-topic", Produced.with(Serdes.String(), Serdes.Long()));
+
+        // Combine the values of all records with the same key into a string separated by spaces
+        KTable<String, String> reducedTable = groupedStream.reduce(
+                (aggValue, newValue) -> aggValue + " " + newValue);
+        reducedTable.toStream()
+                .to("aggregations-output-reduce-topic");
+
+
         final Topology topology = builder.build();
         final KafkaStreams streams = new KafkaStreams(topology, props);
         // Print the topology to the console.
