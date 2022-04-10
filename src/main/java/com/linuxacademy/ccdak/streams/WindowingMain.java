@@ -1,5 +1,6 @@
 package com.linuxacademy.ccdak.streams;
 
+import java.time.Duration;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import org.apache.kafka.common.serialization.Serdes;
@@ -7,6 +8,7 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.kstream.*;
 
 public class WindowingMain {
 
@@ -22,9 +24,21 @@ public class WindowingMain {
 
         // Get the source stream.
         final StreamsBuilder builder = new StreamsBuilder();
-        
-        //Implement streams logic.
-        
+
+        KStream<String, String> source = builder.stream("windowing-input-topic");
+
+        KGroupedStream<String, String> groupedStream = source.groupByKey();
+
+        // Apply windowing to the stream with tumbling time windows of 10 seconds
+        TimeWindowedKStream<String, String> windowedStream = groupedStream.windowedBy(
+                        TimeWindows.of(Duration.ofSeconds(10)));
+
+        // Combine the values of all records with the same key into a streaming
+        // separated by spaces, using 10-second windows.
+        KTable<Windowed<String>, String> reducedTable = windowedStream.reduce((aggValue, newValue) -> aggValue + " " + newValue);
+        reducedTable.toStream().to("windowing-output-topic",
+                        Produced.with(WindowedSerdes.timeWindowedSerdeFrom(String.class), Serdes.String()));
+
         final Topology topology = builder.build();
         final KafkaStreams streams = new KafkaStreams(topology, props);
         // Print the topology to the console.
