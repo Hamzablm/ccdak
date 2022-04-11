@@ -9,6 +9,7 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Grouped;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Produced;
 
 public class StreamsKataMain {
@@ -27,17 +28,24 @@ public class StreamsKataMain {
         final StreamsBuilder builder = new StreamsBuilder();
         final KStream<String, String> source = builder.stream("inventory_purchases");
 
-            source.mapValues(value -> {
-                        try {
-                            return Integer.valueOf(value);
-                        } catch (NumberFormatException e) {
-                            System.out.println("Unable to convert this value: " + value);
-                            return 0;
-                        }
-                    })
-                    .groupByKey(Grouped.with(Serdes.String(), Serdes.Integer()))
-                    .reduce(Integer::sum)
-                    .toStream().to("total_purchases", Produced.with(Serdes.String(), Serdes.Integer()));
+        // Convert the value from String to Integer. If the value is not a properly-formatted number,
+        // print a message and set it to 0
+        KStream<String, Integer> integerValuesSource = source.mapValues(value -> {
+            try {
+                return Integer.valueOf(value);
+            } catch (NumberFormatException e) {
+                System.out.println("Unable to convert this value: " + value);
+                return 0;
+            }
+        });
+
+        // Group by the key and reduce to provide a total quantity for each key
+        KTable<String, Integer> productCounts = integerValuesSource
+                .groupByKey(Grouped.with(Serdes.String(), Serdes.Integer()))
+                .reduce(Integer::sum);
+
+        productCounts.toStream()
+                .to("total_purchases", Produced.with(Serdes.String(), Serdes.Integer()));
 
 
 
